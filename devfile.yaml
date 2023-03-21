@@ -1,16 +1,8 @@
 schemaVersion: 2.1.0
 metadata:
-  generateName: quarkus-api-example
-  name: java-quarkus
-  version: 1.2.1
-  provider: Red Hat
-  supportUrl: https://github.com/devfile-samples/devfile-support#support-information
-  icon: https://design.jboss.org/quarkus/logo/final/SVG/quarkus_icon_rgb_default.svg
-  website: https://quarkus.io
-  displayName: Quarkus Java
-  description: Quarkus with Java
-# attributes:
-#   controller.devfile.io/storage-type: ephemeral
+  generateName: quarkus-api-example-demo
+attributes:
+  controller.devfile.io/storage-type: ephemeral
 components:
   - name: tools
     container:
@@ -28,18 +20,7 @@ components:
           protocol: http
           targetPort: 8080
           path: /food
-      volumeMounts:
-        - name: m2
-          path: /home/user/.m2
       memoryLimit: 4G
-      mountSources: true
-
-  - name: ubi-minimal
-    container:
-      image: registry.access.redhat.com/ubi8/ubi-minimal
-      command: ['tail']
-      args: ['-f', '/dev/null']
-      memoryLimit: 64M
       mountSources: true
 
   - name: postgresql
@@ -54,24 +35,29 @@ components:
           value: food_db
         - name: PGDATA
           value: /tmp/pgdata
-  - name: m2
-    volume:
-      size: 1G
+
+  - name: ubi-minimal
+    container:
+      image: registry.access.redhat.com/ubi8/ubi-minimal
+      command: ['tail']
+      args: ['-f', '/dev/null']
+      memoryLimit: 64M
+      mountSources: true
 commands:
   - id: package
     exec:
       label: "Package"
       component: tools
-      workingDir: ${PROJECTS_ROOT}/quarkus-api-example
-      commandLine: "./mvnw clean package -DskipTests=true"
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: "./mvnw clean package -DskipTests=true -Dquarkus.profile=staging"
       group:
         kind: build
         isDefault: true
   - id: runtests
     exec:
-      label: "Run Tests"
+      label: "Run tests"
       component: tools
-      workingDir: ${PROJECTS_ROOT}/quarkus-api-example
+      workingDir: ${PROJECT_SOURCE}
       commandLine: "./mvnw test"
       group:
         kind: test
@@ -79,15 +65,39 @@ commands:
     exec:
       label: "Package Native"
       component: tools
-      workingDir: ${PROJECTS_ROOT}/quarkus-api-example
-      commandLine: "./mvnw package -Dnative -Dmaven.test.skip -Dquarkus.native.native-image-xmx=3G"
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: "./mvnw package -Dnative -Dmaven.test.skip -Dquarkus.native.native-image-xmx=3G  -Dquarkus.profile=staging"
+      group:
+        kind: build
+  - id: buildimage
+    exec:
+      label: "Build Image"
+      component: tools
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: "podman build -f src/main/docker/Dockerfile.jvm -t image-registry.openshift-image-registry.svc:5000/openshift/quarkus-api-example ."
+      group:
+        kind: build
+  - id: loginlocalregistry
+    exec:
+      label: "Login to local OpenShift registry"
+      component: tools
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: "podman login --tls-verify=false -u kubeadmin -p $(oc whoami -t) image-registry.openshift-image-registry.svc:5000"
+      group:
+        kind: run
+  - id: pushimage
+    exec:
+      label: "Push Image"
+      component: tools
+      workingDir: ${PROJECT_SOURCE}
+      commandLine: "podman push --tls-verify=false image-registry.openshift-image-registry.svc:5000/openshift/quarkus-api-example"
       group:
         kind: build
   - id: startdev
     exec:
       label: "Start Development mode (Hot reload + debug)"
       component: tools
-      workingDir: ${PROJECTS_ROOT}/quarkus-api-example
+      workingDir: ${PROJECT_SOURCE}
       commandLine: "./mvnw compile quarkus:dev"
       group:
         kind: run
@@ -96,31 +106,7 @@ commands:
     exec:
       label: "Start Native"
       component: ubi-minimal
-      workingDir: ${PROJECTS_ROOT}/quarkus-api-example/target
+      workingDir: ${PROJECT_SOURCE}/target
       commandLine: "./quarkus-api-example-1.0.0-SNAPSHOT-runner"
       group:
         kind: run
-  - id: buildimage
-    exec:
-      label: "Build Image"
-      component: tools
-      workingDir: ${PROJECT_SOURCE}
-      commandLine: "podman build -f src/main/docker/Dockerfile.jvm -t quay.io/che-incubator/quarkus-api-example ."
-      group:
-        kind: build
-  - id: tag
-    exec:
-      label: "Tag Image"
-      component: tools
-      workingDir: ${PROJECTS_ROOT}/quarkus-api-example
-      commandLine: "podman tag localhost/quarkus/getting-started-jvm:latest quay.io/ibuziuk/quarkus-api-example:demo"
-      group:
-        kind: test
-  - id: deploypostgres
-    exec:
-      label: "Deploy Postrgres"
-      component: tools
-      workingDir: ${PROJECTS_ROOT}/quarkus-api-example
-      commandLine: "oc new-app -e POSTGRESQL_USER=user -e POSTGRESQL_PASSWORD=password -e POSTGRESQL_DATABASE=food_db postgresql:10-el7 -n demo"
-      group:
-        kind: test
