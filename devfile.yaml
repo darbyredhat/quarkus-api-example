@@ -20,7 +20,7 @@ components:
           protocol: http
           targetPort: 8080
           path: /food
-      memoryLimit: 2G
+      memoryLimit: 2Gi
       mountSources: true
 
   - name: ubi-minimal
