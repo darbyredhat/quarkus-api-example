@@ -1,8 +1,8 @@
 schemaVersion: 2.1.0
 metadata:
   generateName: quarkus-api-example-demo
-attributes:
-  controller.devfile.io/storage-type: ephemeral
+# attributes:
+#  controller.devfile.io/storage-type: ephemeral
 components:
   - name: tools
     container:
@@ -20,6 +20,7 @@ components:
           protocol: http
           targetPort: 8080
           path: /food
+      memoryLimit: 4G
       mountSources: true
 
   - name: ubi-minimal
